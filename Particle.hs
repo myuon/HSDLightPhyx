@@ -12,10 +12,9 @@ import qualified Data.Vector as Vector
 import qualified Data.Bits as Bits
 
 import Util
-import AccessMap
 
 data Particle = Particle {    
-  _pos :: (Int, Int),
+  _pos :: (Float, Float),
   _vector :: (Float, Float),
   _size :: Int,
   _index :: Int,
@@ -25,7 +24,7 @@ data Particle = Particle {
 $(makeLenses ''Particle)
 
 draw :: SDL.Surface -> Particle -> IO Bool
-draw screen p = let (x,y) = p ^. pos; (r,g,b) = p ^. color; s = p ^. size
+draw screen p = let (x,y) = mapPair floor $ p ^. pos; (r,g,b) = p ^. color; s = p ^. size
                 in SDL.fillRect screen (Just (SDL.Rect x y s s))
                    =<< makeColor screen r g b
 
@@ -33,16 +32,35 @@ putG :: Float -> Particle -> Particle
 putG g p = vector .~ (p ^. vector) <*$> (+) <$*> (0,g) $ p
 
 move :: Particle -> Particle
-move p = pos .~ (p ^. pos) <*$> (+) <$*> mapPair floor (p ^. vector) $ p
+move p = pos .~ (p ^. pos) <*$> (+) <$*> mapPair (*deltaT) (p ^. vector) $ 
+         vector %~ mapPair (*airK) $ p
 
-isOutside :: Particle -> Bool
-isOutside p 
-  | x < 0 || x > win_width = False
-  | y < 0 || y > win_height = False
-  | otherwise = True
+wall :: Particle -> Particle
+wall = adjustPosByWall
 
-  where (x,y) = p ^. pos
-
+adjustPosByWall :: Particle -> Particle
+adjustPosByWall = adjustX . adjustY
+  where
+    adjustX :: Particle -> Particle
+    adjustX p
+      | floor x - p^.size < 0 = pos .~ (0.0,y) $
+                          vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
+      | floor x + p^.size > winWidth = pos .~ (fromIntegral (winWidth - p^.size),y) $
+                                 vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
+      | otherwise = p
+                                    
+      where (x,y) = p ^. pos
+            
+    adjustY :: Particle -> Particle
+    adjustY p
+      | floor y - p^.size < 0 = pos .~ (x,0) $ 
+                          vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
+      | floor y + p^.size > winHeight = pos .~ (x,fromIntegral (winHeight-p^.size)) $ 
+                                  vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
+      | otherwise = p
+    
+      where (x,y) = p ^. pos
+    
 get2DMortonNumber :: (Int, Int) -> Int
 get2DMortonNumber (x,y) = bitSeperate x Bits..|. 
                           bitSeperate y `Bits.shiftL` 1
@@ -57,16 +75,16 @@ get2DMortonNumber (x,y) = bitSeperate x Bits..|.
     shiftBitPart digit bit n = (n Bits..|. (n `Bits.shiftL` digit)) Bits..&. bit
 
 getEdgePos :: Particle -> ((Int, Int), (Int, Int))
-getEdgePos p = (mapPairSize (+)) &&& (mapPairSize (flip (-))) $ p ^. pos
+getEdgePos p = mapPairSize (+) &&& mapPairSize (flip (-)) $ mapPair floor $ p ^. pos
   where
     mapPairSize :: (Int -> b -> c) -> (b,b) -> (c,c)
     mapPairSize = flip mapPair3 (p ^. size, p ^. size)
-    
+
 getSpacePos :: ((Int, Int), (Int, Int)) -> (Int, Int)
 getSpacePos p@(x,_) = findSpace x $ uncurry Bits.xor $ mapPair get2DMortonNumber p
   where
     findSpace :: (Int, Int) -> Int -> (Int, Int)
-    findSpace n morton = ((6-shiftNumber) `div` 2, (get2DMortonNumber n) `Bits.shiftR` shiftNumber)
+    findSpace n morton = ((6-shiftNumber) `div` 2, get2DMortonNumber n `Bits.shiftR` shiftNumber)
       where 
         shiftNumber = getShiftNumber morton
     

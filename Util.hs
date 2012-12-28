@@ -6,22 +6,27 @@ import Control.Monad
 import Control.Applicative
 import Control.Arrow
 
-win_width = 640 :: Int
-win_height = 480 :: Int
+winWidth = 800 :: Int
+winHeight = 600 :: Int
+
+constG = 0.1 :: Float
+ballE = 0.88 :: Float
+airK = 0.9998 :: Float
+deltaT = 0.5 :: Float
 
 mapPair :: (a -> b) -> (a,a) -> (b,b)
 mapPair f = f *** f
 
-mapPair3 :: (a -> b -> c) -> (a,a) -> ((b,b) -> (c,c))
+mapPair3 :: (a -> b -> c) -> (a,a) -> (b,b) -> (c,c)
 mapPair3 f x = flatPair $ f *** f $ x
   where
-    flatPair :: (b -> c, b' -> c') -> ((b,b') -> (c,c'))
+    flatPair :: (b -> c, b' -> c') -> (b,b') -> (c,c')
     flatPair t = arr (fst t) *** arr (snd t) 
 
 makeColor :: SDL.Surface -> Int -> Int -> Int -> IO SDL.Pixel
 makeColor screen r g b = SDL.mapRGB (SDL.surfaceGetPixelFormat screen) (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
-(<*$>) :: (a, a) -> (a -> b -> c) -> ((b, b) -> (c, c))
+(<*$>) :: (a, a) -> (a -> b -> c) -> (b, b) -> (c, c)
 (<*$>) = flip mapPair3
 
 (<$*>) :: (a -> b) -> a -> b

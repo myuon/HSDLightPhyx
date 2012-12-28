@@ -25,7 +25,7 @@ mouseLeftPos _ = Nothing
 gameinit :: IO World
 gameinit = do
      SDL.init [SDL.InitEverything]
-     SDL.setVideoMode win_width win_height 32 []
+     SDL.setVideoMode winWidth winHeight 32 []
      SDL.setCaption "HSDLightPhyx" ""
      
      return $ objects .~ Vector.empty $ World {}
@@ -33,7 +33,7 @@ gameinit = do
 clearDisplay :: SDL.Surface -> IO Bool
 clearDisplay screen = do
   color <- makeColor screen 0 0 30
-  SDL.fillRect screen (Just (SDL.Rect 0 0 win_width win_height)) color
+  SDL.fillRect screen (Just (SDL.Rect 0 0 winWidth winHeight)) color
 
 mainLoop :: World -> IO ()
 mainLoop world = do
@@ -48,7 +48,7 @@ mainLoop world = do
   
   world' <- addParticleByMouseEvent event world
   
-  if isQuit event then return () else mainLoop $ stepWorld world'
+  unless (isQuit event) $ mainLoop $ stepWorld world'
   
   where
     isQuit :: SDL.Event -> Bool
@@ -62,13 +62,12 @@ drawWorld :: SDL.Surface -> World -> IO ()
 drawWorld screen w = Vector.mapM_ (P.draw screen) (w ^. objects)
 
 stepWorld :: World -> World
-stepWorld w = objects %~ Vector.filter P.isOutside . 
-              Vector.map (P.move . (P.putG 0.005)) $ w
+stepWorld w = objects %~ Vector.map (P.wall . P.move . P.putG constG) $ w
 
 addParticleByMouseEvent :: SDL.Event -> World -> IO World
 addParticleByMouseEvent event w = return $ case mouse of 
   Just p -> objects .~ (w ^. objects) `Vector.snoc`
-            (P.pos .~ p $
+            (P.pos .~ mapPair fromIntegral p $
              P.vector .~ (0,0) $
              P.color .~ (255,255,255) $
              P.size .~ 10 $
