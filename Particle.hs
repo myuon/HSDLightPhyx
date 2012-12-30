@@ -13,15 +13,28 @@ import qualified Data.Bits as Bits
 
 import Util
 
+import Debug.Trace
+
+type Particles = Vector.Vector Particle
+
 data Particle = Particle {    
   _pos :: (Float, Float),
   _vector :: (Float, Float),
   _size :: Int,
-  _index :: Int,
-  _color :: (Int, Int, Int)
+  _color :: (Int, Int, Int),
+  _index :: Int
   }
 
 $(makeLenses ''Particle)
+
+init :: Particle
+init = Particle {
+  _pos = (0,0), 
+  _vector = (0,0),
+  _color = (255, 128, 0),
+  _size = 10,
+  _index = -1
+  }
 
 draw :: SDL.Surface -> Particle -> IO Bool
 draw screen p = let (x,y) = mapPair floor $ p ^. pos; (r,g,b) = p ^. color; s = p ^. size
@@ -80,30 +93,42 @@ getEdgePos p = mapPairSize (+) &&& mapPairSize (flip (-)) $ mapPair floor $ p ^.
     mapPairSize :: (Int -> b -> c) -> (b,b) -> (c,c)
     mapPairSize = flip mapPair3 (p ^. size, p ^. size)
 
-getSpacePos :: ((Int, Int), (Int, Int)) -> (Int, Int)
-getSpacePos p@(x,_) = findSpace x $ uncurry Bits.xor $ mapPair get2DMortonNumber p
-  where
-    findSpace :: (Int, Int) -> Int -> (Int, Int)
-    findSpace n morton = ((6-shiftNumber) `div` 2, get2DMortonNumber n `Bits.shiftR` shiftNumber)
-      where 
-        shiftNumber = getShiftNumber morton
-    
-    getShiftNumber :: Int -> Int
-    getShiftNumber x' = case shiftNumber of
-      Just n -> n+2
-      Nothing -> 6
+getGenerationShift :: Int -> Int
+getGenerationShift x = case shiftNumber of
+  Just n -> n+2
+  Nothing -> 6
       
-      where
-        shiftNumber = isShiftable 4 x' <|>
-                      isShiftable 2 x' <|>
-                      isShiftable 0 x'
-    
+  where
+    shiftNumber = isShiftable 4 x <|>
+                  isShiftable 2 x <|>
+                  isShiftable 0 x
+
     isShiftable :: Int -> Int -> Maybe Int
-    isShiftable n x' = if x' `Bits.shiftR` n == 0 then Nothing else Just n
+    isShiftable n p = if p `Bits.shiftR` n == 0 then Nothing else Just n
     
+getSpacePos :: ((Int, Int), (Int, Int)) -> (Int, Int)
+getSpacePos (x,y) = findSpace . uncurry Bits.xor $ (x',y')
+  where
+    (x',y') = mapPair (get2DMortonNumber . toSpaceNumber) (x,y)
+    
+    findSpace :: Int -> (Int, Int)
+    findSpace morton = ((6-shiftNumber) `div` 2, x' `Bits.shiftR` shiftNumber)
+      where
+        shiftNumber = getGenerationShift morton
+    
+    toSpaceNumber :: (Int, Int) -> (Int, Int)
+    toSpaceNumber = mapPair floor . ((divByUnit winWidth) *** (divByUnit winHeight))
+      where
+        divByUnit :: Int -> Int -> Float
+        divByUnit u t = let u' = fromIntegral u; 
+                            t' = fromIntegral t in t'/(u'/8)
 
 getAccessPos :: Particle -> (Int, Int)
 getAccessPos = getSpacePos . getEdgePos
 
-getTreeIndex :: (Int, Int) -> Int
-getTreeIndex (x,y) = (4^x - 1) `div` 3 + y
+tableIndex :: (Int, Int) -> Int
+tableIndex (x,y) = (4^x - 1) `div` 3 + y
+
+getIndex :: Particle -> Int
+getIndex = tableIndex . getAccessPos
+

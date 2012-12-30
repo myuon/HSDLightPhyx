@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, ViewPatterns #-}
 import qualified Graphics.UI.SDL as SDL
 
 import Control.Monad
@@ -12,11 +12,22 @@ import Util
 import qualified Particle as P
 import qualified AccessMap as M
 
+import Debug.Trace
+
 data World = World {
-  _objects :: Vector.Vector P.Particle
+  _objects :: P.Particles,
+  _tree :: M.AccessMap,
+  _treeInit :: M.AccessMap
   }
 
 $(makeLenses ''World)
+
+initWorld :: World
+initWorld = World {
+  _objects = Vector.empty,
+  _tree = Vector.fromList $ zipWith const (repeat Vector.empty) [1..(4^4-1)`div`3],
+  _treeInit = Vector.fromList $ zipWith const (repeat Vector.empty) [1..(4^4-1)`div`3]
+  }
 
 mouseLeftPos :: SDL.Event -> Maybe (Int, Int)
 mouseLeftPos (SDL.MouseButtonUp x y SDL.ButtonLeft) = Just (fromIntegral x, fromIntegral y)
@@ -28,7 +39,7 @@ gameinit = do
      SDL.setVideoMode winWidth winHeight 32 []
      SDL.setCaption "HSDLightPhyx" ""
      
-     return $ objects .~ Vector.empty $ World {}
+     return $ initWorld
 
 clearDisplay :: SDL.Surface -> IO Bool
 clearDisplay screen = do
@@ -62,17 +73,35 @@ drawWorld :: SDL.Surface -> World -> IO ()
 drawWorld screen w = Vector.mapM_ (P.draw screen) (w ^. objects)
 
 stepWorld :: World -> World
-stepWorld w = objects %~ Vector.map (P.wall . P.move . P.putG constG) $ w
+stepWorld = collide . regist . action
+
+  where
+    action :: World -> World
+    action = objects %~ Vector.map (P.wall . P.move . P.putG constG)
+    
+    regist :: World -> World
+    regist w = tree .~ registParticle (w ^. objects) (w ^. treeInit) $ w
+    
+    collide :: World -> World
+    collide w = trace (show $ M.mapCollisionPair (w ^. tree)) w
+--    collide w = w
 
 addParticleByMouseEvent :: SDL.Event -> World -> IO World
-addParticleByMouseEvent event w = return $ case mouse of 
+addParticleByMouseEvent event w = return $ case mouse of
   Just p -> objects .~ (w ^. objects) `Vector.snoc`
-            (P.pos .~ mapPair fromIntegral p $
-             P.vector .~ (0,0) $
-             P.color .~ (255,255,255) $
-             P.size .~ 10 $
-             P.index .~ 0 $ P.Particle {}) $ w
+            (
+              P.pos .~ mapPair fromIntegral p $ 
+              P.index .~ Vector.length (w ^. objects) $ 
+              P.init
+            ) $ w
   Nothing -> w
-  
+
   where
     mouse = mouseLeftPos event
+
+registParticle :: P.Particles -> M.AccessMap -> M.AccessMap
+registParticle p' amap
+  | Vector.null p' = amap 
+  | otherwise = registParticle ps (M.putElement (P.getIndex p) (p ^. P.index) amap)
+  where
+    (p,ps) = Vector.head &&& Vector.tail $ p'

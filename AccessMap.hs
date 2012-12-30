@@ -11,6 +11,8 @@ import qualified Data.Bits as Bits
 
 import Util
 
+import Debug.Trace
+
 type AccessMap = Vector.Vector (Vector.Vector Int)
 
 mapCollisionPair :: AccessMap -> Vector.Vector (Int, Int)
@@ -19,14 +21,14 @@ mapCollisionPair = zipPairByGeneration 0
 zipPairByGeneration :: Int -> AccessMap -> Vector.Vector (Int, Int)
 zipPairByGeneration n amap
   | amap == Vector.empty = Vector.empty
-  | otherwise = ((,) <$> join prevs <*> join current) Vector.++ zipPairByGeneration (n+1) amap
+  | otherwise = ((,) <$> join prevs <*> join current) Vector.++ zipPairByGeneration (n+1) latter
 
   where
-    (prevs, current) = cutByGeneration n amap
+    (prevs, (latter, current)) = cutByGeneration n amap
 
-cutByGeneration :: Int -> AccessMap -> (AccessMap, AccessMap)
+cutByGeneration :: Int -> AccessMap -> (AccessMap, (AccessMap, AccessMap))
 cutByGeneration n = let n' = 4^n
-                    in second (Vector.take n') . Vector.splitAt ((n'-1) `div` 3)
+                    in (\(x,y) -> (x, second (Vector.take n') $ (y,y))) . Vector.splitAt ((n'-1) `div` 3)
 
 putElement :: Int -> Int -> AccessMap -> AccessMap
 putElement n v amap = amap Vector.// [(n, (amap Vector.! n) `Vector.snoc` v)]
