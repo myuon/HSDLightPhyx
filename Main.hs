@@ -83,8 +83,7 @@ stepWorld = collide . regist . action
     regist w = tree .~ registParticle (w ^. objects) (w ^. treeInit) $ w
     
     collide :: World -> World
-    collide w = trace (show $ M.mapCollisionPair (w ^. tree)) w
---    collide w = w
+    collide w = objects %~ collideParticles (M.mapCollisionPair (w ^. tree)) $ w
 
 addParticleByMouseEvent :: SDL.Event -> World -> IO World
 addParticleByMouseEvent event w = return $ case mouse of
@@ -105,3 +104,21 @@ registParticle p' amap
   | otherwise = registParticle ps (M.putElement (P.getIndex p) (p ^. P.index) amap)
   where
     (p,ps) = Vector.head &&& Vector.tail $ p'
+    
+collideParticles :: Vector.Vector (Int, Int) -> P.Particles -> P.Particles
+collideParticles indexes ps = ps Vector.// (flatMaybeList $ newParticlePairs indexes ps)
+
+newParticlePairs :: Vector.Vector (Int, Int) -> P.Particles -> [Maybe (Int, P.Particle)]
+newParticlePairs pairs ps
+  | Vector.null pairs = []
+  | otherwise = pairMaybe a : pairMaybe b : newParticlePairs others ps
+  where
+    (pair,others) = Vector.head &&& Vector.tail $ pairs
+    
+    (a,b) = newParticle pair ps
+
+newParticle :: (Int, Int) -> P.Particles -> ((Int, Maybe P.Particle), (Int, Maybe P.Particle))
+newParticle (a,b) ps = let pa = ps Vector.! a; pb = ps Vector.! b
+                       in ((a, pa `P.collideTo` pb),
+                           (b, pb `P.collideTo` pa))
+

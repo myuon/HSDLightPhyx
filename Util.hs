@@ -32,3 +32,13 @@ makeColor screen r g b = SDL.mapRGB (SDL.surfaceGetPixelFormat screen) (fromInte
 (<$*>) :: (a -> b) -> a -> b
 (<$*>) = ($)
 
+pairMaybe :: (a, Maybe b) -> Maybe (a, b)
+pairMaybe (a, Just b) = Just (a,b)
+pairMaybe _ = Nothing
+
+flatMaybeList :: [Maybe a] -> [a]
+flatMaybeList [] = []
+flatMaybeList (p:ps) = case p of
+  Just x -> x : flatMaybeList ps
+  Nothing -> flatMaybeList ps
+

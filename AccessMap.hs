@@ -28,7 +28,7 @@ zipPairByGeneration n amap
 
 cutByGeneration :: Int -> AccessMap -> (AccessMap, (AccessMap, AccessMap))
 cutByGeneration n = let n' = 4^n
-                    in (\(x,y) -> (x, second (Vector.take n') $ (y,y))) . Vector.splitAt ((n'-1) `div` 3)
+                    in second (second (Vector.take n') . (id &&& id)) . Vector.splitAt ((n'-1) `div` 3)
 
 putElement :: Int -> Int -> AccessMap -> AccessMap
 putElement n v amap = amap Vector.// [(n, (amap Vector.! n) `Vector.snoc` v)]

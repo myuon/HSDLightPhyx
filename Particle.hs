@@ -2,6 +2,7 @@
 module Particle where
 
 import qualified Graphics.UI.SDL as SDL
+--import qualified Graphics.UI.SDL.Primitives as SDL.P
 
 import Control.Monad
 import Control.Applicative
@@ -32,13 +33,13 @@ init = Particle {
   _pos = (0,0), 
   _vector = (0,0),
   _color = (255, 128, 0),
-  _size = 10,
+  _size = 5,
   _index = -1
   }
 
 draw :: SDL.Surface -> Particle -> IO Bool
 draw screen p = let (x,y) = mapPair floor $ p ^. pos; (r,g,b) = p ^. color; s = p ^. size
-                in SDL.fillRect screen (Just (SDL.Rect x y s s))
+                in SDL.fillRect screen (Just (SDL.Rect (x-s) (y-s) (2*s) (2*s)))
                    =<< makeColor screen r g b
 
 putG :: Float -> Particle -> Particle
@@ -56,10 +57,10 @@ adjustPosByWall = adjustX . adjustY
   where
     adjustX :: Particle -> Particle
     adjustX p
-      | floor x - p^.size < 0 = pos .~ (0.0,y) $
-                          vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
+      | floor x - p^.size < 0 = pos .~ (fromIntegral (p ^. size),y) $
+                                vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
       | floor x + p^.size > winWidth = pos .~ (fromIntegral (winWidth - p^.size),y) $
-                                 vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
+                                       vector .~ (p^.vector) <*$> (*) <$*> (-ballE,1) $ p
       | otherwise = p
                                     
       where (x,y) = p ^. pos
@@ -67,12 +68,39 @@ adjustPosByWall = adjustX . adjustY
     adjustY :: Particle -> Particle
     adjustY p
       | floor y - p^.size < 0 = pos .~ (x,0) $ 
-                          vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
+                                vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
       | floor y + p^.size > winHeight = pos .~ (x,fromIntegral (winHeight-p^.size)) $ 
-                                  vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
+                                        vector .~ (p^.vector) <*$> (*) <$*> (1,-ballE) $ p
       | otherwise = p
     
       where (x,y) = p ^. pos
+    
+collideTo :: Particle -> Particle -> Maybe Particle
+collideTo p q = collide (q ^. pos) p
+
+collide :: (Float, Float) -> Particle -> Maybe Particle
+collide (rx, ry) p = case isTouch (p ^. size) (rx,ry) (p ^. pos) of 
+  True -> Just $ 
+          vector .~ (vx', vy') $ 
+          color .~ (0,128,255) $ p
+  False -> Nothing
+    
+  where
+    dx :: Float
+    dx = rx - fst (p ^. pos)
+                 
+    dy :: Float
+    dy = ry - snd (p ^. pos)
+        
+    r2plus = dx^2 + dy^2
+    r2minus = dx^2 - dy^2
+    r2cross = 2 * dx * dy
+        
+    vx' = negate (r2minus * fst (p ^. vector) + r2cross * snd (p ^. vector)) / r2plus
+    vy' = negate (r2cross * fst (p ^. vector) - r2minus * snd (p ^. vector)) / r2plus
+
+isTouch :: Int -> (Float, Float) -> (Float, Float) -> Bool
+isTouch r (x,y) (x',y') = (x-x')^2+(y-y')^2 <= (2*fromIntegral r)^2
     
 get2DMortonNumber :: (Int, Int) -> Int
 get2DMortonNumber (x,y) = bitSeperate x Bits..|. 
