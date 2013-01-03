@@ -5,7 +5,7 @@ import Control.Monad
 import Control.Applicative
 import Control.Arrow
 import Control.Lens
-
+import Data.Maybe (catMaybes)
 import qualified Data.Vector as Vector
 
 import Util
@@ -106,7 +106,7 @@ registParticle p' amap
     (p,ps) = Vector.head &&& Vector.tail $ p'
     
 collideParticles :: Vector.Vector (Int, Int) -> P.Particles -> P.Particles
-collideParticles indexes ps = ps Vector.// (flatMaybeList $ newParticlePairs indexes ps)
+collideParticles indexes ps = ps Vector.// (catMaybes $ newParticlePairs indexes ps)
 
 newParticlePairs :: Vector.Vector (Int, Int) -> P.Particles -> [Maybe (Int, P.Particle)]
 newParticlePairs pairs ps
