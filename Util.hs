@@ -17,17 +17,23 @@ deltaT = 0.5 :: Float
 mapPair :: (a -> b) -> (a,a) -> (b,b)
 mapPair f = f *** f
 
-mapPair3 :: (a -> b -> c) -> (a,a) -> (b,b) -> (c,c)
-mapPair3 = (>>> uncurry (***)) . mapPair
+mapPairBinary :: (a -> b -> c) -> (a,a) -> (b,b) -> (c,c)
+mapPairBinary = (>>> uncurry (***)) . mapPair
 
 makeColor :: SDL.Surface -> Int -> Int -> Int -> IO SDL.Pixel
 makeColor screen r g b = SDL.mapRGB (SDL.surfaceGetPixelFormat screen) (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
 (<*$>) :: (a, a) -> (a -> b -> c) -> (b, b) -> (c, c)
-(<*$>) = flip mapPair3
+(<*$>) = flip mapPairBinary
 
 (<$*>) :: (a -> b) -> a -> b
 (<$*>) = ($)
 
-pairMaybe :: (a, Maybe b) -> Maybe (a, b)
-pairMaybe = first (fmap . (,)) >>> app
+norm :: (Float, Float) -> Float
+norm (x,y) = sqrt $ x^2 + y^2
+
+(|*|) :: (Float, Float) -> (Float, Float) -> Float
+(a,b) |*| (c,d) = a*c + b*d
+
+scale :: (Num t) => t -> (t,t) -> (t,t)
+scale k = mapPair (*k)
