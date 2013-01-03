@@ -145,7 +145,7 @@ getSpacePos (x,y) = findSpace . uncurry Bits.xor $ (x',y')
         shiftNumber = getGenerationShift morton
     
     toSpaceNumber :: (Int, Int) -> (Int, Int)
-    toSpaceNumber = mapPair floor . ((divByUnit winWidth) *** (divByUnit winHeight))
+    toSpaceNumber = mapPair floor . (divByUnit winWidth *** divByUnit winHeight)
       where
         divByUnit :: Int -> Int -> Float
         divByUnit u t = let u' = fromIntegral u; 

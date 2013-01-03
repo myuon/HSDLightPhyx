@@ -18,10 +18,7 @@ mapPair :: (a -> b) -> (a,a) -> (b,b)
 mapPair f = f *** f
 
 mapPair3 :: (a -> b -> c) -> (a,a) -> (b,b) -> (c,c)
-mapPair3 f x = flatPair $ f *** f $ x
-  where
-    flatPair :: (b -> c, b' -> c') -> (b,b') -> (c,c')
-    flatPair t = arr (fst t) *** arr (snd t) 
+mapPair3 = (>>> uncurry (***)) . mapPair
 
 makeColor :: SDL.Surface -> Int -> Int -> Int -> IO SDL.Pixel
 makeColor screen r g b = SDL.mapRGB (SDL.surfaceGetPixelFormat screen) (fromIntegral r) (fromIntegral g) (fromIntegral b)
@@ -33,12 +30,4 @@ makeColor screen r g b = SDL.mapRGB (SDL.surfaceGetPixelFormat screen) (fromInte
 (<$*>) = ($)
 
 pairMaybe :: (a, Maybe b) -> Maybe (a, b)
-pairMaybe (a, Just b) = Just (a,b)
-pairMaybe _ = Nothing
-
-flatMaybeList :: [Maybe a] -> [a]
-flatMaybeList [] = []
-flatMaybeList (p:ps) = case p of
-  Just x -> x : flatMaybeList ps
-  Nothing -> flatMaybeList ps
-
+pairMaybe = first (fmap . (,)) >>> app
