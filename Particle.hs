@@ -16,11 +16,17 @@ import Util
 
 import Debug.Trace
 
+isCrossed :: (Float, Float) -> (Float, Float) -> (Float, Float) -> (Float, Float) -> Bool
+isCrossed x1 x2 v1 v2 = let sepV = x2 <*$> (-) <$*> x1;
+                            t1 = (sepV |*| v1)/(v1 |*| v2);
+                            t2 = (sepV |*| v2)/(v1 |*| v2)
+                        in 0 <= t1 && t1 <= 1 && 0 <= t2 && t2 <= 1
+
 maybeDistance :: Int -> Int -> (Float, Float) -> (Float, Float) -> Maybe Float
 maybeDistance r r' (x,y) (x',y') = let pdist = sqrt $ (x-x')^2+(y-y')^2;
                                        rdist = (fromIntegral r + fromIntegral r')
-                                   in if pdist <= rdist then Just (rdist - pdist) else Nothing
-    
+                                   in if pdist < rdist then Just (rdist - pdist) else Nothing
+
 get2DMortonNumber :: (Int, Int) -> Int
 get2DMortonNumber (x,y) = bitSeperate x Bits..|. 
                           bitSeperate y `Bits.shiftL` 1
@@ -108,27 +114,28 @@ collideTo :: Particle -> Particle -> Maybe (Particle, Particle)
 collideTo p q = collide q p
 
 collide :: Particle -> Particle -> Maybe (Particle, Particle)
-collide q p = case maybeDistance (p ^. size) (q ^. size) (q ^. pos) (p ^. pos) of 
-  Just d -> Just $
-          (pos .~ ((negate $ r1*d) `scale` c) <*$> (+) <$*> (p^.pos) $
+collide q p = case isCrossed (p ^. pos) (q ^. pos) (p ^. vector) (q ^. vector) || (d >= 0) of
+  True -> Just $
+          (pos .~ ((r1*d) `scale` c) <*$> (+) <$*> (p^.pos) $
            vector .~ (r1 `scale` k) <*$> (+) <$*> (p^.vector) $ 
            color .~ (0, 128, 255) $ p,
-           pos .~ ((negate $ r2*d) `scale` c) <*$> (+) <$*> (q^.pos) $
+           pos .~ ((r2*d) `scale` c) <*$> (+) <$*> (q^.pos) $
            vector .~ (r2 `scale` k) <*$> (+) <$*> (q^.vector) $ 
-           color .~ (128, 255, 0) $ q)
-  Nothing -> Nothing
-  
+           color .~ (128, 255, 0) $ q)  
+  False -> Nothing
+
   where
     r1 = (fromIntegral $ q^.size)/(fromIntegral $ p^.size + q^.size)
     r2 = r1-1
+    sepV = ((p ^. pos) <*$> (-) <$*> (q ^. pos)) <*$> (+) <$*> (0, 0)
+    d = (fromIntegral (p ^. size) + fromIntegral (q ^. size)) - (norm sepV)
     
     c :: (Float, Float)
-    c = let sepV = (q ^. pos) <*$> (-) <$*> (p ^. pos) 
-        in mapPair (/(norm sepV + 0.5)) sepV
+    c = mapPair (/(norm sepV)) sepV
     
     k :: (Float, Float)
-    k = let sepV = (q ^. vector) <*$> (-) <$*> (p ^. vector)
-        in ((1+ballE)*(sepV |*| c)) `scale` c
+    k = let sepS = (q ^. vector) <*$> (-) <$*> (p ^. vector)
+        in ((1+ballE)*(sepS |*| c)) `scale` c
 
 getAccessPos :: Particle -> (Int, Int)
 getAccessPos = getSpacePos . getEdgePos
@@ -153,16 +160,23 @@ getAccessPos = getSpacePos . getEdgePos
     getEdgePos :: Particle -> ((Int, Int), (Int, Int))
     getEdgePos p = let x = p ^. pos; 
                        v = p ^. vector;
-                   in mapPair (mapPair floor) $ compareThenAddY $ compareThenAddX $ (,) x (x <*$> (+) <$*> v)
+                   in mapPair (mapPair floor) $ 
+                      compareThenAddY $ 
+                      compareThenAddX $ (,) x (x <*$> (+) <$*> v)
       where
+        s :: Float
         s = fromIntegral $ p ^. size
         
         compareThenAddX :: ((Float, Float), (Float, Float)) -> ((Float, Float), (Float, Float))
-        compareThenAddX ((a,b), (c,d)) = if a<=c then ((a-s,b),(c+s,d)) else ((a+s,b),(c-s,d))
-
+        compareThenAddX (a,b) = if (fst a) <= (fst b)
+                                then (first (subtract s)) *** (first (+s)) $ (a,b)
+                                else (first (+s)) *** (first (subtract s)) $ (a,b)
+        
         compareThenAddY :: ((Float, Float), (Float, Float)) -> ((Float, Float), (Float, Float))
-        compareThenAddY ((a,b), (c,d)) = if b<=d then ((a,b-s),(c,d+s)) else ((a,b+s),(c,d-s))
-
+        compareThenAddY (a,b) = if (snd a) <= (snd b)
+                                then (second (subtract s)) *** (second (+s)) $ (a,b)
+                                else (second (+s)) *** (second (subtract s)) $ (a,b)
+        
 getIndex :: Particle -> Int
 getIndex = tableIndex . getAccessPos
   where

@@ -15,7 +15,7 @@ import Particle
 
 import Debug.Trace
 
-type AccessMap = Vector.Vector (Vector.Vector Int)
+type AccessMap = Vector.Vector [Int]
 type Particles = Vector.Vector Particle
 
 mapCollisionPair :: AccessMap -> Vector.Vector (Int, Int)
@@ -24,24 +24,34 @@ mapCollisionPair = zipPairByGeneration 0
     zipPairByGeneration :: Int -> AccessMap -> Vector.Vector (Int, Int)
     zipPairByGeneration n amap
       | amap == Vector.empty = Vector.empty
-      | otherwise = ((,) <$> join previous <*> join current) Vector.++ zipPairByGeneration (n+1) rest
+      | otherwise = ((,) <$> previous' <*> current') Vector.++
+                    (Vector.filter (\(x,y) -> x/=y) $ (,) <$> current' <*> current') Vector.++ zipPairByGeneration (n+1) rest
 
       where
         (previous, (current, rest)) = cutByGeneration n amap
+        
+        previous' = Vector.concatMap Vector.fromList previous
+        current' = Vector.concatMap Vector.fromList current
 
 cutByGeneration :: Int -> AccessMap -> (AccessMap, (AccessMap, AccessMap))
 cutByGeneration n = let n' = 4^n
                     in second (first (Vector.take n') . (id &&& id)) . Vector.splitAt ((n'-1) `div` 3)
 
-update :: Int -> Int -> AccessMap -> AccessMap
-update n v amap = amap Vector.// [(n, (amap Vector.! n) `Vector.snoc` v)]
 
 register :: Particles -> AccessMap -> AccessMap
-register p' amap
-  | Vector.null p' = amap 
-  | otherwise = register ps (update (getIndex p) (p ^. index) amap)
+register p' amap = amap Vector.// update (makeSeats p') amap
+
+makeSeats :: Particles -> [(Int, Int)]
+makeSeats p'
+  | Vector.null p' = []
+  | otherwise = ((getIndex p), (p ^. index)) : (makeSeats ps)
   where
     (p,ps) = Vector.head &&& Vector.tail $ p'
+
+update :: [(Int, Int)] -> AccessMap -> [(Int, [Int])]
+update [] _ = []
+update ((n,v):ps) amap = (n, v : (amap Vector.! n)) : update ps amap
+
 
 collideMap :: Vector.Vector (Int, Int) -> Particles -> Particles
 collideMap indexes ps = ps Vector.// newPairs indexes ps
@@ -56,6 +66,7 @@ newPairs pairs ps
     (head', tail') = Vector.head &&& Vector.tail $ pairs
 
 newParticle :: (Int, Int) -> Particles -> Maybe ((Int, Particle), (Int, Particle))
-newParticle (a,b) ps = let pa = ps Vector.! a; pb = ps Vector.! b
-                       in fmap (\(x,y) -> ((a,x),(b,y))) (pb `collideTo` pa)
+newParticle (a,b) ps = let pa = ps Vector.! a;
+                           pb = ps Vector.! b
+                       in fmap ((\x->(a,x))***(\x->(b,x))) (pa `collideTo` pb)
 

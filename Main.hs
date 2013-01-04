@@ -33,8 +33,8 @@ $(makeLenses ''World)
 initWorld :: World
 initWorld = World {
   _objects = Vector.empty,
-  _tree = Vector.fromList $ zipWith const (repeat Vector.empty) [1..(4^4-1)`div`3],
-  _treeInit = Vector.fromList $ zipWith const (repeat Vector.empty) [1..(4^4-1)`div`3]
+  _tree = Vector.fromList $ zipWith const (repeat []) [1..(4^4-1)`div`3],
+  _treeInit = Vector.fromList $ zipWith const (repeat []) [1..(4^4-1)`div`3]
   }
 
 gameinit :: IO World
